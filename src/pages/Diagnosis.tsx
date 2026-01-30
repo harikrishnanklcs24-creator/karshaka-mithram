@@ -1,5 +1,9 @@
-import { useState, useRef } from "react";
-import { Camera, Upload, Leaf, Languages, Send, AlertCircle, CheckCircle, Loader2 } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
+import { db } from "@/lib/firebase";
+import { collection, addDoc } from "firebase/firestore";
+import { Camera, Upload, Leaf, Languages, Send, AlertCircle, CheckCircle, Loader2, ArrowLeft, User, ShoppingBag, Sprout } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 // Kerala Districts
@@ -73,11 +77,12 @@ interface DiagnosisResult {
   preventiveMeasures: string;
 }
 
-const Index = () => {
-  const [language, setLanguage] = useState<"en" | "ml">("en");
+const Diagnosis = () => {
+  const { user, userData } = useAuth();
+  const [language, setLanguage] = useState<"en" | "ml">((userData?.language as "en" | "ml") || "en");
   const [image, setImage] = useState<string | null>(null);
   const [description, setDescription] = useState("");
-  const [district, setDistrict] = useState("");
+  const [district, setDistrict] = useState(userData?.district || "");
   const [cropCategory, setCropCategory] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [diagnosis, setDiagnosis] = useState<DiagnosisResult | null>(null);
@@ -85,6 +90,31 @@ const Index = () => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  // Mock Product Data for Recommendation
+  const naturalProducts = [
+    {
+      keyword: "neem",
+      id: 1,
+      name: "100% Pure Neem Oil",
+      company: "Neem Company",
+      price: 60,
+      image: "/neem-oil.jpg",
+      description: "Highly effective organic solution recommended for this issue."
+    }
+  ];
+
+  const getRecommendedProduct = (diagnosis: DiagnosisResult) => {
+    const text = (diagnosis.recommendedAction + " " + diagnosis.preventiveMeasures).toLowerCase();
+    return naturalProducts.find(p => text.includes(p.keyword));
+  };
+
+  const recommendedProduct = diagnosis ? getRecommendedProduct(diagnosis) : null;
+
+  useEffect(() => {
+    if (userData?.language) setLanguage(userData.language);
+    if (userData?.district) setDistrict(userData.district);
+  }, [userData]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -124,7 +154,7 @@ const Index = () => {
       const { data, error: fnError } = await supabase.functions.invoke("crop-diagnosis", {
         body: {
           description,
-          district,
+          district: district || userData?.district,
           cropCategory,
           language,
           imageBase64,
@@ -141,6 +171,21 @@ const Index = () => {
       }
 
       setDiagnosis(data.diagnosis);
+
+      // Save request to Firestore history
+      if (user) {
+        await addDoc(collection(db, "requests"), {
+          userId: user.uid,
+          cropCategory,
+          description,
+          district: district || userData?.district,
+          diagnosis: data.diagnosis,
+          riskLevel: data.diagnosis.riskLevel, // Save as top-level for easier querying
+          createdAt: new Date().toISOString(),
+          image: image // Note: For real apps, upload to Storage and save URL instead
+        });
+      }
+
     } catch (err) {
       console.error("Analysis Error:", err);
       setError(t("errorOccurred", language));
@@ -149,40 +194,25 @@ const Index = () => {
     }
   };
 
+  const navigate = useNavigate();
+
   return (
-    <div className={`min-h-screen bg-background ${language === "ml" ? "malayalam-text" : ""}`}>
-      {/* Header */}
-      <header className="bg-primary text-primary-foreground py-4 px-4 shadow-lg">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="bg-white p-1 rounded-full overflow-hidden w-12 h-12 flex items-center justify-center">
-              <img src="/logo.jpg" alt="Logo" className="w-full h-full object-cover" />
-            </div>
-            <div>
-              <h1 className="text-xl md:text-2xl font-bold">{t("appTitle", language)}</h1>
-              <p className="text-sm opacity-90">{t("govText", language)}</p>
-            </div>
-          </div>
+    <div className={`min-h-screen ${language === "ml" ? "malayalam-text" : ""}`}>
+      <main className="max-w-2xl mx-auto p-4 pb-8 space-y-6">
+        <div className="flex justify-end mb-2">
           <button
             onClick={toggleLanguage}
-            className="flex items-center gap-2 bg-primary-foreground/20 hover:bg-primary-foreground/30 
-                       px-4 py-2 rounded-lg transition-colors font-semibold"
+            className="flex items-center gap-2 px-4 py-2 bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all text-sm font-bold text-slate-600"
           >
-            <Languages className="w-5 h-5" />
+            <Languages className="h-4 w-4 text-primary" />
             {language === "en" ? "മലയാളം" : "English"}
           </button>
         </div>
-      </header>
 
-      {/* Subtitle Banner */}
-      <div className="bg-secondary py-3 px-4 text-center">
-        <p className="text-secondary-foreground font-medium text-lg">
-          {t("appSubtitle", language)}
-        </p>
-      </div>
-
-      {/* Main Content */}
-      <main className="max-w-2xl mx-auto p-4 pb-8 space-y-6">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-black text-slate-900 mb-2">{t("appTitle", language)}</h1>
+          <p className="text-slate-500 font-medium">{t("appSubtitle", language)}</p>
+        </div>
         {/* Image Upload Section */}
         <div className="farmer-card">
           <label className="farmer-label">{t("uploadImage", language)}</label>
@@ -377,6 +407,34 @@ const Index = () => {
                   {diagnosis.preventiveMeasures}
                 </p>
               </div>
+
+              {/* Product Recommendation */}
+              {recommendedProduct && (
+                <div className="mt-8 bg-green-50 rounded-[2rem] p-6 border border-green-100 animate-slide-up">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Sprout className="h-5 w-5 text-green-600" />
+                    <h4 className="font-bold text-green-800">AI Recommended Solution</h4>
+                  </div>
+                  <div className="bg-white rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row gap-6 items-center">
+                    <div className="h-24 w-24 rounded-xl overflow-hidden flex-shrink-0 bg-slate-100">
+                      <img src={recommendedProduct.image} alt={recommendedProduct.name} className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex-1 text-center sm:text-left">
+                      <h5 className="font-bold text-slate-900 text-lg">{recommendedProduct.name}</h5>
+                      <p className="text-xs text-slate-500 mb-1">by {recommendedProduct.company}</p>
+                      <p className="text-sm text-slate-600 mb-3">{recommendedProduct.description}</p>
+                      <p className="font-black text-slate-900 text-xl">₹{recommendedProduct.price}</p>
+                    </div>
+                    <button
+                      onClick={() => navigate("/pesticides")}
+                      className="bg-green-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-green-700 hover:shadow-lg hover:shadow-green-200 transition-all flex items-center gap-2 flex-shrink-0"
+                    >
+                      <ShoppingBag className="h-4 w-4" />
+                      Buy Now
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -394,4 +452,4 @@ const Index = () => {
   );
 };
 
-export default Index;
+export default Diagnosis;
