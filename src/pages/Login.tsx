@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
+import { useAuth } from "@/context/AuthContext";
 import { doc, updateDoc, setDoc, getDoc } from "firebase/firestore";
 import { Leaf, Mail, Lock, ArrowRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -11,6 +12,8 @@ const Login = () => {
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
+
+    const { refreshUserData } = useAuth();
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -26,8 +29,10 @@ const Login = () => {
                     email: email,
                     name: "Super Admin"
                 }, { merge: true });
-                // Force reload to ensure AuthContext picks up the new role
-                window.location.href = "/super-admin";
+
+                // Refresh user data to update context state
+                await refreshUserData(user);
+                navigate("/super-admin");
             } else if (email === "subadmin@gmail.com") {
                 await setDoc(doc(db, "users", user.uid), {
                     role: "subadmin",

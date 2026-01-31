@@ -6,6 +6,7 @@ import { signOut } from "firebase/auth";
 import { collection, query, where, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { LogOut, Sun, CloudRain, History, ShoppingBag, Leaf, Loader2, TrendingUp, User, Plus, AlertCircle } from "lucide-react";
 import SatelliteInsights from "@/components/SatelliteInsights";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import SubAdminDashboard from "./SubAdminDashboard";
 import { toast } from "sonner";
 
@@ -197,7 +198,7 @@ const Dashboard = () => {
 
     return (
         <div className="min-h-screen bg-slate-50/50">
-            <main className="max-w-5xl mx-auto p-6 space-y-8 animate-fade-in">
+            <main className="max-w-5xl mx-auto p-4 md:p-6 space-y-6 md:space-y-8 animate-fade-in">
                 {/* Notification Banner */}
                 {latestOffer && (
                     <div className="bg-blue-600 rounded-2xl p-4 text-white shadow-lg shadow-blue-200 relative overflow-hidden animate-slide-up flex items-center gap-4">
@@ -304,7 +305,7 @@ const Dashboard = () => {
                                         <Loader2 className="h-12 w-12 animate-spin opacity-50" />
                                     ) : (
                                         <>
-                                            <h2 className="text-6xl font-black">{weather?.main?.temp ? Math.round(weather.main.temp) : "--"}°</h2>
+                                            <h2 className="text-4xl md:text-6xl font-black">{weather?.main?.temp ? Math.round(weather.main.temp) : "--"}°</h2>
                                             <div>
                                                 <p className="text-xl font-bold">{weather?.weather?.[0]?.main || "Clear"}</p>
                                                 <p className="text-blue-200">Feels like {weather?.main?.feels_like ? Math.round(weather.main.feels_like) : "--"}°</p>
@@ -432,7 +433,9 @@ const Dashboard = () => {
 
                 {/* Satellite Monitoring Section */}
                 <div className="pt-8 border-t border-slate-100 animate-slide-up" style={{ animationDelay: '0.5s' }}>
-                    <SatelliteInsights />
+                    <ErrorBoundary>
+                        <SatelliteInsights />
+                    </ErrorBoundary>
                 </div>
             </main>
         </div>
